@@ -20,7 +20,10 @@ const Currency = require("./models/Currency");
 
 const getRateFromUrl = async (url) => {
   // Lancement du navigateur
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ["--incognito", "--no-sandbox", "--single-process", "--no-zygote"],
+  });
   const page = await browser.newPage();
   await page.goto(url);
 
@@ -51,7 +54,15 @@ app.get("/update", (req, res) => {
       // Lancement du navigateur
 
       console.log("Initialisation de Puppeteer...");
-      const browser = await puppeteer.launch();
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          "--incognito",
+          "--no-sandbox",
+          "--single-process",
+          "--no-zygote",
+        ],
+      });
       const page = await browser.newPage();
       await page.goto(process.env.SOURCE_URL);
 
