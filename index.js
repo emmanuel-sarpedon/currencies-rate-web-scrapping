@@ -49,15 +49,18 @@ const getRateFromUrl = async (url) => {
 };
 
 let isUpdating = false;
+let messageToUser = "Calcul en cours ...";
 
 app.get("/update", (req, res) => {
+  let timer = 0;
+
   if (!isUpdating) {
     isUpdating = true;
     try {
       (async () => {
         // Lancement du navigateur
 
-        console.log("Initialisation de Puppeteer...");
+        console.log("--> Initialisation de Puppeteer");
         const browser = await puppeteer.launch({
           headless: true,
           args: [
@@ -70,6 +73,7 @@ app.get("/update", (req, res) => {
         const page = await browser.newPage();
         await page.goto(process.env.SOURCE_URL);
 
+        console.log("--> Récupération des url");
         // Récupération de toutes les conversions possibles ainsi que les url
         const listOfCurrencies = await page.evaluate(() => {
           const el = Array.from(document.querySelectorAll("td a"));
@@ -92,11 +96,12 @@ app.get("/update", (req, res) => {
 
         await browser.close();
 
-        console.log("Listing des devises terminées - Début de la mise à jour");
-
         return listOfCurrencies;
       })() // Attente de la résolution de la promesse browser.close()
         .then(async (currencies) => {
+          console.log("--> Début de la mise à jour des taux");
+
+          setInterval(() => timer++, 1);
           const currenciesUpdated = currencies;
 
           // Mise à jour du taux pour chaque devise présente dans l'array 'result'
@@ -128,37 +133,57 @@ app.get("/update", (req, res) => {
 
             if (newCurrency.rate) {
               // si on ne parvient pas à récupérer le taux on ne modifie pas la BDD
-              await newCurrency.save();
+              try {
+                await newCurrency.save();
+              } catch (error) {
+                console.log(error.message);
+              }
             }
 
             // Affichage de l'avancement de la mise à jour dans la console
-            console.log(
+            messageToUser =
+              i +
+              1 +
+              "/" +
+              currenciesUpdated.length +
+              " (" +
               (((i + 1) / currenciesUpdated.length) * 100).toFixed(2) +
-                "% : " +
-                (i + 1) +
-                " / " +
-                currenciesUpdated.length +
-                " traités" +
-                isUpdating
-            );
+              "%) - Temps écoulé : " +
+              Math.floor(timer / 1000 / 60 / 60) +
+              " h " +
+              Math.floor(
+                (timer - Math.floor(timer / 1000 / 60 / 60) * 60 * 1000) /
+                  1000 /
+                  60
+              ) +
+              " m " +
+              (timer - Math.floor(timer / 1000 / 60) * 60 * 1000) / 1000 +
+              " s";
+
+            console.log(messageToUser);
 
             i === currenciesUpdated.length - 1 && (isUpdating = false); // on passe la variable isUpdating à false lorsque toute la màj est terminée
           }
         });
-      res.status(200).json({ message: "update in progress" });
+      res.status(200).json({
+        message:
+          "Update started. You can follow the progress by reloading page",
+      });
     } catch (error) {
       isUpdating = false;
       res.status(400).json({ error: error.message });
     }
   } else {
-    res.status(200).json({ message: "update already in progress" });
+    res
+      .status(200)
+      .json({ message: "Already in progress", progress: messageToUser });
   }
 });
 
 app.get("/rates", async (req, res) => {
   const rates = await Currency.find();
 
-  res.status(200).json(rates);
+  res.status(200).json({ count: rates.length, data: rates });
 });
 
 app.listen(process.env.PORT, () => {
