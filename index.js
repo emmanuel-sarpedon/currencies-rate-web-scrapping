@@ -107,7 +107,7 @@ app.get("/update", (req, res) => {
             currenciesUpdated[i].update = undefined;
           }
 
-          // Création d'une nouvelle devise et sauvegarde dans base de données MongoDB
+          // Création d'une nouvelle devise et sauvegarde dans la base de données MongoDB
           const newCurrency = new Currency({
             from: {
               currency: currenciesUpdated[i].from.currency,
