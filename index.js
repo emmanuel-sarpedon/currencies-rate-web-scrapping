@@ -1,7 +1,20 @@
-const puppeteer = require("puppeteer");
+require("dotenv").config();
 
-const url =
-  "https://www.boursorama.com/bourse/devises/euro-convertisseurs-devises/";
+const puppeteer = require("puppeteer");
+const express = require("express");
+const formidable = require("express-formidable");
+const mongoose = require("mongoose");
+
+const app = express();
+app.use(formidable());
+
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  useCreateIndex: true,
+});
+
+const Currency = require("./models/Currency");
 
 const getRateFromUrl = async (url) => {
   // Lancement du navigateur
@@ -34,7 +47,7 @@ const getRateFromUrl = async (url) => {
   // Lancement du navigateur
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
-  await page.goto(url);
+  await page.goto(process.env.SOURCE_URL);
 
   // Récupération de toutes les conversions possibles ainsi que les url
   const listOfCurrencies = await page.evaluate(() => {
@@ -65,8 +78,36 @@ const getRateFromUrl = async (url) => {
 
     // Mise à jour du taux pour chaque devise présente dans l'array 'result'
     for (let i = 0; i < currenciesUpdated.length; i++) {
-      currenciesUpdated[i].rate = await getRateFromUrl(res[i].link);
-      currenciesUpdated[i].update = Date();
-      console.log(currenciesUpdated.slice(0, i + 1));
+      try {
+        currenciesUpdated[i].rate = await getRateFromUrl(
+          currenciesUpdated[i].link
+        );
+        currenciesUpdated[i].update = Date();
+      } catch (error) {
+        currenciesUpdated[i].rate = undefined;
+        currenciesUpdated[i].update = undefined;
+      }
+
+      // Création d'une nouvelle devise et sauvegarde dans base de données MongoDB
+      const newCurrency = new Currency({
+        from: {
+          currency: currenciesUpdated[i].from.currency,
+          description: currenciesUpdated[i].from.description,
+        },
+        to: {
+          currency: currenciesUpdated[i].to.currency,
+          description: currenciesUpdated[i].to.description,
+        },
+        link: currenciesUpdated[i].link,
+        rate: currenciesUpdated[i].rate,
+        update: currenciesUpdated[i].update,
+      });
+
+      if (newCurrency.rate) {
+        // si on ne parvient pas à récupérer le taux on ne modifie pas la BDD
+        await newCurrency.save();
+      }
+
+      console.log(newCurrency);
     }
   });
