@@ -1,4 +1,5 @@
 require("dotenv").config();
+const cors = require("cors");
 
 const puppeteer = require("puppeteer");
 const express = require("express");
@@ -7,6 +8,7 @@ const mongoose = require("mongoose");
 
 const app = express();
 app.use(formidable());
+app.use(cors());
 
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
@@ -43,71 +45,100 @@ const getRateFromUrl = async (url) => {
   return rate; // on renvoie le taux affiché sur le site
 };
 
-(async () => {
-  // Lancement du navigateur
-  const browser = await puppeteer.launch();
-  const page = await browser.newPage();
-  await page.goto(process.env.SOURCE_URL);
+app.get("/update", (req, res) => {
+  try {
+    (async () => {
+      // Lancement du navigateur
 
-  // Récupération de toutes les conversions possibles ainsi que les url
-  const listOfCurrencies = await page.evaluate(() => {
-    const el = Array.from(document.querySelectorAll("td a"));
+      console.log("Initialisation de Puppeteer...");
+      const browser = await puppeteer.launch();
+      const page = await browser.newPage();
+      await page.goto(process.env.SOURCE_URL);
 
-    const list = el.map((el, i) => ({
-      id: i,
-      from: {
-        currency: el.innerHTML.slice(3, 6),
-        description: el.innerHTML.slice(12, 16),
-      },
-      to: {
-        currency: el.innerHTML.slice(31, 34),
-        description: el.innerHTML.slice(40, el.innerHTML.length - 1),
-      },
-      link: el.href,
-    }));
+      // Récupération de toutes les conversions possibles ainsi que les url
+      const listOfCurrencies = await page.evaluate(() => {
+        const el = Array.from(document.querySelectorAll("td a"));
 
-    return list;
-  });
+        const list = el.map((el, i) => ({
+          id: i,
+          from: {
+            currency: el.innerHTML.slice(3, 6),
+            description: el.innerHTML.slice(12, 16),
+          },
+          to: {
+            currency: el.innerHTML.slice(31, 34),
+            description: el.innerHTML.slice(40, el.innerHTML.length - 1),
+          },
+          link: el.href,
+        }));
 
-  await browser.close();
-
-  return listOfCurrencies;
-})() // Attente de la résolution de la promesse browser.close()
-  .then(async (currencies) => {
-    const currenciesUpdated = currencies;
-
-    // Mise à jour du taux pour chaque devise présente dans l'array 'result'
-    for (let i = 0; i < currenciesUpdated.length; i++) {
-      try {
-        currenciesUpdated[i].rate = await getRateFromUrl(
-          currenciesUpdated[i].link
-        );
-        currenciesUpdated[i].update = Date();
-      } catch (error) {
-        currenciesUpdated[i].rate = undefined;
-        currenciesUpdated[i].update = undefined;
-      }
-
-      // Création d'une nouvelle devise et sauvegarde dans base de données MongoDB
-      const newCurrency = new Currency({
-        from: {
-          currency: currenciesUpdated[i].from.currency,
-          description: currenciesUpdated[i].from.description,
-        },
-        to: {
-          currency: currenciesUpdated[i].to.currency,
-          description: currenciesUpdated[i].to.description,
-        },
-        link: currenciesUpdated[i].link,
-        rate: currenciesUpdated[i].rate,
-        update: currenciesUpdated[i].update,
+        return list;
       });
 
-      if (newCurrency.rate) {
-        // si on ne parvient pas à récupérer le taux on ne modifie pas la BDD
-        await newCurrency.save();
-      }
+      await browser.close();
 
-      console.log(newCurrency);
-    }
-  });
+      console.log("Listing des devises terminées - Début de la mise à jour");
+
+      return listOfCurrencies;
+    })() // Attente de la résolution de la promesse browser.close()
+      .then(async (currencies) => {
+        const currenciesUpdated = currencies;
+
+        // Mise à jour du taux pour chaque devise présente dans l'array 'result'
+        for (let i = 0; i < currenciesUpdated.length; i++) {
+          try {
+            currenciesUpdated[i].rate = await getRateFromUrl(
+              currenciesUpdated[i].link
+            );
+            currenciesUpdated[i].update = Date();
+          } catch (error) {
+            currenciesUpdated[i].rate = undefined;
+            currenciesUpdated[i].update = undefined;
+          }
+
+          // Création d'une nouvelle devise et sauvegarde dans base de données MongoDB
+          const newCurrency = new Currency({
+            from: {
+              currency: currenciesUpdated[i].from.currency,
+              description: currenciesUpdated[i].from.description,
+            },
+            to: {
+              currency: currenciesUpdated[i].to.currency,
+              description: currenciesUpdated[i].to.description,
+            },
+            link: currenciesUpdated[i].link,
+            rate: currenciesUpdated[i].rate,
+            update: currenciesUpdated[i].update,
+          });
+
+          if (newCurrency.rate) {
+            // si on ne parvient pas à récupérer le taux on ne modifie pas la BDD
+            await newCurrency.save();
+          }
+
+          console.log(
+            (((i + 1) / currenciesUpdated.length) * 100).toFixed(2) +
+              "% : " +
+              (i + 1) +
+              " / " +
+              currenciesUpdated.length +
+              " traités"
+          );
+        }
+      });
+
+    res.status(200).json({ message: "update in progress" });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/rates", async (req, res) => {
+  const rates = await Currency.find();
+
+  res.status(200).json(rates);
+});
+
+app.listen(process.env.PORT, () => {
+  console.log("Server listing port " + process.env.PORT);
+});
