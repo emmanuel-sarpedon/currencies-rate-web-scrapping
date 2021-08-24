@@ -11,7 +11,8 @@ const Currency = mongoose.model("Currency", {
   },
   link: String,
   rate: Number,
-  update: Date,
+  created: Date,
+  updated: Date,
 });
 
 module.exports = Currency;

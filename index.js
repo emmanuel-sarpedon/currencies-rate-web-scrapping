@@ -110,7 +110,8 @@ app.get("/update", (req, res) => {
               currenciesUpdated[i].rate = await getRateFromUrl(
                 currenciesUpdated[i].link
               );
-              currenciesUpdated[i].update = Date();
+              currenciesUpdated[i].updated = Date();
+              currenciesUpdated[i].created = Date();
             } catch (error) {
               currenciesUpdated[i].rate = undefined;
               currenciesUpdated[i].update = undefined;
@@ -128,13 +129,26 @@ app.get("/update", (req, res) => {
               },
               link: currenciesUpdated[i].link,
               rate: currenciesUpdated[i].rate,
-              update: currenciesUpdated[i].update,
+              updated: currenciesUpdated[i].updated,
+              created: currenciesUpdated[i].created,
             });
 
             if (newCurrency.rate) {
               // si on ne parvient pas à récupérer le taux on ne modifie pas la BDD
               try {
-                await newCurrency.save();
+                // si la devise existe dans la BDD, on la met à jour et on n'en crée pas une nouvelle
+                const currencieInDataBase = await Currency.findOne({
+                  link: currenciesUpdated[i].link,
+                });
+
+                if (currencieInDataBase) {
+                  currencieInDataBase.rate = newCurrency.rate;
+                  currencieInDataBase.updated = Date();
+
+                  await currencieInDataBase.save();
+                } else {
+                  await newCurrency.save();
+                }
               } catch (error) {
                 console.log(error.message);
               }
