@@ -22,7 +22,13 @@ const getRateFromUrl = async (url) => {
   // Lancement du navigateur
   const browser = await puppeteer.launch({
     headless: true,
-    args: ["--incognito", "--no-sandbox", "--single-process", "--no-zygote"],
+    // * args: pour déploiement sur Heroku
+    // args: [
+    //   "--incognito",
+    //   "--no-sandbox",
+    //   "--single-process",
+    //   "--no-zygote",
+    // ],
   });
   const page = await browser.newPage();
   await page.goto(url);
@@ -50,10 +56,7 @@ const getRateFromUrl = async (url) => {
 
 let isUpdating = false;
 let messageToUser = "Calcul en cours ...";
-
 app.get("/update", (req, res) => {
-  let timer = 0;
-
   if (!isUpdating) {
     isUpdating = true;
     try {
@@ -63,12 +66,13 @@ app.get("/update", (req, res) => {
         console.log("--> Initialisation de Puppeteer");
         const browser = await puppeteer.launch({
           headless: true,
-          args: [
-            "--incognito",
-            "--no-sandbox",
-            "--single-process",
-            "--no-zygote",
-          ],
+          // * args: pour déploiement sur Heroku
+          // args: [
+          //   "--incognito",
+          //   "--no-sandbox",
+          //   "--single-process",
+          //   "--no-zygote",
+          // ],
         });
         const page = await browser.newPage();
         await page.goto(process.env.SOURCE_URL);
@@ -78,18 +82,20 @@ app.get("/update", (req, res) => {
         const listOfCurrencies = await page.evaluate(() => {
           const el = Array.from(document.querySelectorAll("td a"));
 
-          const list = el.map((el, i) => ({
-            id: i,
-            from: {
-              currency: el.innerHTML.slice(3, 6),
-              description: el.innerHTML.slice(12, 16),
-            },
-            to: {
-              currency: el.innerHTML.slice(31, 34),
-              description: el.innerHTML.slice(40, el.innerHTML.length - 1),
-            },
-            link: el.href,
-          }));
+          const list = el
+            .filter((el) => el.innerHTML.slice(3, 6) === "EUR")
+            .map((el, i) => ({
+              id: i,
+              from: {
+                currency: el.innerHTML.slice(3, 6),
+                description: el.innerHTML.slice(12, 16),
+              },
+              to: {
+                currency: el.innerHTML.slice(31, 34),
+                description: el.innerHTML.slice(40, el.innerHTML.length - 1),
+              },
+              link: el.href,
+            }));
 
           return list;
         });
@@ -101,7 +107,7 @@ app.get("/update", (req, res) => {
         .then(async (currencies) => {
           console.log("--> Début de la mise à jour des taux");
 
-          setInterval(() => timer++, 1);
+          // setInterval(() => timer++, 1);
           const currenciesUpdated = currencies;
 
           // Mise à jour du taux pour chaque devise présente dans l'array 'result'
@@ -162,17 +168,7 @@ app.get("/update", (req, res) => {
               currenciesUpdated.length +
               " (" +
               (((i + 1) / currenciesUpdated.length) * 100).toFixed(2) +
-              "%) - Temps écoulé : " +
-              Math.floor(timer / 1000 / 60 / 60) +
-              " h " +
-              Math.floor(
-                (timer - Math.floor(timer / 1000 / 60 / 60) * 60 * 1000) /
-                  1000 /
-                  60
-              ) +
-              " m " +
-              (timer - Math.floor(timer / 1000 / 60) * 60 * 1000) / 1000 +
-              " s";
+              "%)";
 
             console.log(messageToUser);
 
