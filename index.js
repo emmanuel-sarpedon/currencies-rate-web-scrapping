@@ -1,23 +1,27 @@
+//DEPENDENCIES
 require("dotenv").config();
 const cors = require("cors");
-
 const puppeteer = require("puppeteer");
 const express = require("express");
 const formidable = require("express-formidable");
 const mongoose = require("mongoose");
 
+//APP
 const app = express();
 app.use(formidable());
 app.use(cors());
 
+//BDD
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
   useCreateIndex: true,
 });
 
+//MODELS
 const Currency = require("./models/Currency");
 
+//HELPERS
 const getRateFromUrl = async (url) => {
   // Lancement du navigateur
   const browser = await puppeteer.launch({
@@ -57,6 +61,7 @@ const getRateFromUrl = async (url) => {
 
 let isUpdating = false;
 let messageToUser = "Calcul en cours ...";
+
 app.get("/update", (req, res) => {
   if (!isUpdating) {
     isUpdating = true;
