@@ -49,6 +49,7 @@ const getRateFromUrl = async (url) => {
     );
   });
 
+  await page.close();
   await browser.close();
 
   return rate; // on renvoie le taux affiché sur le site
@@ -100,6 +101,7 @@ app.get("/update", (req, res) => {
           return list;
         });
 
+        await page.close();
         await browser.close();
 
         return listOfCurrencies;
@@ -107,7 +109,6 @@ app.get("/update", (req, res) => {
         .then(async (currencies) => {
           console.log("--> Début de la mise à jour des taux");
 
-          // setInterval(() => timer++, 1);
           const currenciesUpdated = currencies;
 
           // Mise à jour du taux pour chaque devise présente dans l'array 'result'
@@ -197,5 +198,5 @@ app.get("/rates", async (req, res) => {
 });
 
 app.listen(process.env.PORT, () => {
-  console.log("Server listing port " + process.env.PORT);
+  console.log("Server had started on port " + process.env.PORT);
 });
