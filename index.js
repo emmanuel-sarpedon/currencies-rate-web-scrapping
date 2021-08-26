@@ -56,6 +56,7 @@ const getRateFromUrl = async (url) => {
 
 let isUpdating = false;
 let messageToUser = "Calcul en cours ...";
+
 app.get("/update", (req, res) => {
   if (!isUpdating) {
     isUpdating = true;
@@ -172,7 +173,12 @@ app.get("/update", (req, res) => {
 
             console.log(messageToUser);
 
-            i === currenciesUpdated.length - 1 && (isUpdating = false); // on passe la variable isUpdating à false lorsque toute la màj est terminée
+            if (i === currenciesUpdated.length - 1) {
+              isUpdating = false; // on passe la variable isUpdating à false lorsque toute la màj est terminée
+              messageToUser = "Calcul en cours ...";
+              currenciesUpdated.length = 0; // vide l'array
+              console.log("Mise à jour terminée ✅");
+            }
           }
         });
       res.status(200).json({
