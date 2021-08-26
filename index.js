@@ -1,23 +1,27 @@
+//DEPENDENCIES
 require("dotenv").config();
 const cors = require("cors");
-
 const puppeteer = require("puppeteer");
 const express = require("express");
 const formidable = require("express-formidable");
 const mongoose = require("mongoose");
 
+//APP
 const app = express();
 app.use(formidable());
 app.use(cors());
 
+//BDD
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
   useCreateIndex: true,
 });
 
+//MODELS
 const Currency = require("./models/Currency");
 
+//HELPERS
 const getRateFromUrl = async (url) => {
   // Lancement du navigateur
   const browser = await puppeteer.launch({
@@ -49,6 +53,7 @@ const getRateFromUrl = async (url) => {
     );
   });
 
+  await page.close();
   await browser.close();
 
   return rate; // on renvoie le taux affiché sur le site
@@ -101,6 +106,7 @@ app.get("/update", (req, res) => {
           return list;
         });
 
+        await page.close();
         await browser.close();
 
         return listOfCurrencies;
@@ -108,7 +114,6 @@ app.get("/update", (req, res) => {
         .then(async (currencies) => {
           console.log("--> Début de la mise à jour des taux");
 
-          // setInterval(() => timer++, 1);
           const currenciesUpdated = currencies;
 
           // Mise à jour du taux pour chaque devise présente dans l'array 'result'
@@ -203,5 +208,5 @@ app.get("/rates", async (req, res) => {
 });
 
 app.listen(process.env.PORT, () => {
-  console.log("Server listing port " + process.env.PORT);
+  console.log("Server had started on port " + process.env.PORT);
 });
