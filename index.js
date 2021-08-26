@@ -106,82 +106,68 @@ app.get("/update", (req, res) => {
           return list;
         });
 
+        console.log(`--> ${listOfCurrencies.length} devises trouvées !`);
+
         await page.close();
         await browser.close();
 
         return listOfCurrencies;
       })() // Attente de la résolution de la promesse browser.close()
-        .then(async (currencies) => {
+        .then(async (listOfCurrencies) => {
           console.log("--> Début de la mise à jour des taux");
 
-          const currenciesUpdated = currencies;
-
-          // Mise à jour du taux pour chaque devise présente dans l'array 'result'
-          for (let i = 0; i < currenciesUpdated.length; i++) {
+          // Mise à jour du taux pour chaque devise présente dans l'array 'listOfCurrencies'
+          for (let i = 0; i < listOfCurrencies.length; i++) {
             try {
-              currenciesUpdated[i].rate = await getRateFromUrl(
-                currenciesUpdated[i].link
+              listOfCurrencies[i].rate = await getRateFromUrl(
+                listOfCurrencies[i].link
               );
-              currenciesUpdated[i].updated = Date();
-              currenciesUpdated[i].created = Date();
-            } catch (error) {
-              currenciesUpdated[i].rate = undefined;
-              currenciesUpdated[i].update = undefined;
-            }
 
-            // Création d'une nouvelle devise et sauvegarde dans la base de données MongoDB
-            const newCurrency = new Currency({
-              from: {
-                currency: currenciesUpdated[i].from.currency,
-                description: currenciesUpdated[i].from.description,
-              },
-              to: {
-                currency: currenciesUpdated[i].to.currency,
-                description: currenciesUpdated[i].to.description,
-              },
-              link: currenciesUpdated[i].link,
-              rate: currenciesUpdated[i].rate,
-              updated: currenciesUpdated[i].updated,
-              created: currenciesUpdated[i].created,
-            });
+              // Création d'une nouvelle devise et sauvegarde dans la base de données MongoDB
+              const newCurrency = new Currency(listOfCurrencies[i]);
 
-            if (newCurrency.rate) {
-              // si on ne parvient pas à récupérer le taux on ne modifie pas la BDD
-              try {
-                // si la devise existe dans la BDD, on la met à jour et on n'en crée pas une nouvelle
-                const currencieInDataBase = await Currency.findOne({
-                  link: currenciesUpdated[i].link,
-                });
+              if (newCurrency.rate) {
+                // si on ne parvient pas à récupérer le taux on ne modifie pas la BDD
+                try {
+                  // si la devise existe dans la BDD, on la met à jour et on n'en crée pas une nouvelle
+                  const currencieInDataBase = await Currency.findOne({
+                    link: listOfCurrencies[i].link,
+                  });
 
-                if (currencieInDataBase) {
-                  currencieInDataBase.rate = newCurrency.rate;
-                  currencieInDataBase.updated = Date();
+                  if (currencieInDataBase) {
+                    currencieInDataBase.rate = newCurrency.rate;
+                    currencieInDataBase.updated = Date();
 
-                  await currencieInDataBase.save();
-                } else {
-                  await newCurrency.save();
+                    await currencieInDataBase.save();
+                  } else {
+                    newCurrency.created = Date();
+                    newCurrency.updated = Date();
+
+                    await newCurrency.save();
+                  }
+                } catch (error) {
+                  console.log(error.message);
                 }
-              } catch (error) {
-                console.log(error.message);
               }
+
+              // Affichage de l'avancement de la mise à jour dans la console
+              messageToUser = `${i + 1} / ${listOfCurrencies.length} (${(
+                ((i + 1) / listOfCurrencies.length) *
+                100
+              ).toFixed(2)}%) : ${listOfCurrencies[i].from.currency} -> ${
+                listOfCurrencies[i].to.currency
+              } (${listOfCurrencies[i].to.description})`;
+
+              console.log(messageToUser); // ex : 3 / 158 (1.90%) : EUR -> ALL (lek)
+            } catch (error) {
+              messageToUser = `Impossible de mettre à jour la devise : ${listOfCurrencies[i].to.currency} \n ${error.message}`;
+              console.log(messageToUser);
             }
 
-            // Affichage de l'avancement de la mise à jour dans la console
-            messageToUser =
-              i +
-              1 +
-              "/" +
-              currenciesUpdated.length +
-              " (" +
-              (((i + 1) / currenciesUpdated.length) * 100).toFixed(2) +
-              "%)";
-
-            console.log(messageToUser);
-
-            if (i === currenciesUpdated.length - 1) {
+            if (i === listOfCurrencies.length - 1) {
               isUpdating = false; // on passe la variable isUpdating à false lorsque toute la màj est terminée
               messageToUser = "Calcul en cours ...";
-              currenciesUpdated.length = 0; // vide l'array
+              listOfCurrencies.length = 0; // vide l'array
               console.log("Mise à jour terminée ✅");
             }
           }
