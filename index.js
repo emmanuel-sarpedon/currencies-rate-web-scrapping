@@ -1,4 +1,4 @@
-//DEPENDENCIES
+// ! ----- DEPENDENCIES -----
 require("dotenv").config();
 const cors = require("cors");
 const puppeteer = require("puppeteer");
@@ -6,22 +6,22 @@ const express = require("express");
 const formidable = require("express-formidable");
 const mongoose = require("mongoose");
 
-//APP
+// ! ----- APP -----
 const app = express();
 app.use(formidable());
 app.use(cors());
 
-//BDD
+// ! ----- BDD -----
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
   useCreateIndex: true,
 });
 
-//MODELS
+// ! ----- MODELS -----
 const Currency = require("./models/Currency");
 
-//HELPERS
+// ! ----- HELPERS -----
 const getRateFromUrl = async (url) => {
   // Lancement du navigateur
   const browser = await puppeteer.launch({
@@ -62,6 +62,7 @@ const getRateFromUrl = async (url) => {
 let isUpdating = false;
 let messageToUser = "Calcul en cours ...";
 
+// !----- ROUTES -----
 app.get("/update", (req, res) => {
   if (!isUpdating) {
     isUpdating = true;
@@ -123,23 +124,23 @@ app.get("/update", (req, res) => {
                 listOfCurrencies[i].link
               );
 
-              // Création d'une nouvelle devise et sauvegarde dans la base de données MongoDB
-              const newCurrency = new Currency(listOfCurrencies[i]);
-
-              if (newCurrency.rate) {
+              if (listOfCurrencies[i].rate) {
                 // si on ne parvient pas à récupérer le taux on ne modifie pas la BDD
+
                 try {
-                  // si la devise existe dans la BDD, on la met à jour et on n'en crée pas une nouvelle
-                  const currencieInDataBase = await Currency.findOne({
+                  const currencyToUpdate = await Currency.findOne({
                     link: listOfCurrencies[i].link,
                   });
 
-                  if (currencieInDataBase) {
-                    currencieInDataBase.rate = newCurrency.rate;
-                    currencieInDataBase.updated = Date();
+                  if (currencyToUpdate) {
+                    // si la devise existe dans la BDD, on la met à jour et on n'en crée pas une nouvelle
+                    currencyToUpdate.rate = newCurrency.rate;
+                    currencyToUpdate.updated = Date();
 
-                    await currencieInDataBase.save();
+                    await currencyToUpdate.save();
                   } else {
+                    const newCurrency = new Currency(listOfCurrencies[i]);
+
                     newCurrency.created = Date();
                     newCurrency.updated = Date();
 
